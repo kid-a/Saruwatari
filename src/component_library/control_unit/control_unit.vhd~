@@ -1,0 +1,287 @@
+-------------------------------------------------------------------------------
+-- Control Unit
+--
+-- authors: Daniele Marletta
+--          Loris Fichera
+--
+-- when editing this design BE CAREFUL about all the possible opcodes that may
+-- come in.
+-------------------------------------------------------------------------------
+
+library ieee;
+use ieee.std_logic_1164.all;
+-------------------------------------------------------------------------------
+entity control_unit is
+
+  port (
+    -- add input for zerocomp
+    clk                    : in  std_logic;
+    rst                    : in  std_logic;
+    opcode_1               : in  std_logic_vector(5 downto 0);
+    opcode_0               : in  std_logic_vector(5 downto 0);
+    branch_operand_is_zero : in std_logic;
+
+    if_id_latch_rst        : out std_logic;    -- flushes the first pipeline register
+    pc_write_enable        : out std_logic;
+    alu_src_1              : out std_logic;  -- R-type HIGH;    I-type LOW
+    alu_src_0              : out std_logic;  -- R-type HIGH;    I-type LOW 
+    reg_dst_1              : out std_logic;  -- R-type HIGH;    I-type LOW   
+    reg_dst_0              : out std_logic;  -- R-type HIGH;    I-type LOW 
+    jump                   : out std_logic;  -- active if instruction_1 is a jump
+    jal                    : out std_logic;  -- active if instruction_1 is a jal
+    branch_taken           : out std_logic;  -- active if branch was taken
+    mem_read               : out std_logic;  -- active if instruction_0 is a LW
+    mem_write              : out std_logic;  -- active if instruction_0 is a SW
+    wb_enable_1		   : out std_logic;  -- active if instruction_1 writes on regfiles
+    wb_enable_0		   : out std_logic);  -- active if instruction_0 writes on regfiles
+  
+end control_unit;
+-------------------------------------------------------------------------------
+architecture rtl of control_unit is
+
+  type control_hazard_state is (idle, hazard);
+  signal pr_state : control_hazard_state;
+  signal nx_state : control_hazard_state;
+  signal clk_neg  : std_logic;
+  
+begin  -- rtl
+
+  process (clk, rst)
+  begin  -- process
+    if rst = '1' then                   -- asynchronous reset (active high)
+      pr_state <= idle;
+    elsif clk'event and clk = '1' then  -- rising clock edge
+      pr_state <= nx_state;
+    end if;
+  end process;
+
+
+  process (opcode_1, branch_operand_is_zero, pr_state)
+  begin  -- process
+    case pr_state is
+      when idle =>
+
+        if_id_latch_rst <= '0';
+        pc_write_enable <= '1';
+        case opcode_1(5 downto 4) is
+          when  "00" =>                     -- I-type
+            case opcode_1(3 downto 0) is
+              when "0101" =>              -- beqz
+                if branch_operand_is_zero = '1' then
+                  branch_taken <= '1';
+                  nx_state <= hazard;
+                elsif branch_operand_is_zero = '0' then
+                  branch_taken <= '0';
+                  nx_state <= idle;
+                else 
+                  assert true report "BEQZ: Signal branch_operand_is_zero is not valid";
+                end if;
+                
+              when "0110" =>              -- bnqz
+                if branch_operand_is_zero = '0' then
+                  branch_taken <= '1';
+                  nx_state <= hazard;
+                elsif branch_operand_is_zero = '1' then
+                  branch_taken <= '0';
+                  nx_state <= idle;
+                else 
+                  assert true report "BNQZ: Signal branch_operand_is_zero is not valid";
+                end if;
+              when others =>                -- other  I-type instructions
+                branch_taken <= '0';
+                nx_state <= idle;
+            end case;
+            
+          when "10" =>			-- J-type
+            case opcode_1(3 downto 0) is
+              when "0000"  =>	--jump
+                nx_state <= hazard;
+              when "0001" =>  --jal
+                nx_state <= hazard;
+              when others =>
+                nx_state <= idle;
+            end case;  -- J case
+            
+          when others =>
+            branch_taken <= '0';
+            nx_state <= idle;
+        end case;  -- Opcode case
+        
+      when hazard =>
+
+        -- questa macchina a stati va integrata con quella della hdu
+        -- se c`e` un hazard dati in corso, occorre attendere un altro ciclo di
+        -- clock
+        -- altrimenti l`istruzione presente nell' if/id register (il branch)
+        -- viene messa flushata
+        case opcode_1 is
+          when "000000" =>
+            branch_taken <= '0';
+            if_id_latch_rst <= '0';
+--            pc_write_enable <= '0';
+            nx_state <= idle;
+          when others =>
+            branch_taken <= '0';
+            if_id_latch_rst <= '1';
+--            pc_write_enable <= '1';
+            nx_state <= idle;
+        end case;
+        
+      when others =>
+        assert false
+          report "CONTROL UNIT: Invalid control hazard state."
+        severity error;
+    end case;
+  end process;
+
+  
+  process (opcode_1, branch_operand_is_zero)
+  begin  -- process
+    case opcode_1(5 downto 4) is
+      when  "00" =>                     -- I-type
+
+        case opcode_1(3 downto 0) is
+          when "0000" =>               -- nop
+            alu_src_1  <= '0';      
+            reg_dst_1  <= '0'; 
+            jump       <= '0';
+            jal        <= '0';
+--            branch_taken <= '0';   
+            wb_enable_1   <= '0';
+--            if_id_latch_rst <= '0';
+          when "0101" =>              -- beqz
+	    if branch_operand_is_zero = '1' then
+              alu_src_1  <= '0';      
+              reg_dst_1  <= '0'; -- don't care
+              jump       <= '0';
+              jal        <= '0';
+--              branch_taken <= '1';   
+              wb_enable_1   <= '0';
+--              if_id_latch_rst <= '1';
+      	    elsif branch_operand_is_zero = '0' then
+	      alu_src_1  <= '0';      
+              reg_dst_1  <= '0'; -- don't care
+              jump       <= '0';
+              jal        <= '0';
+--              branch_taken <= '0';   
+              wb_enable_1   <= '0';
+--              if_id_latch_rst <= '0';
+      	    else 
+              assert true report "BEQZ: Signal branch_operand_is_zero is not valid";
+      	    end if;
+            
+          when "0110" =>              -- bnqz
+	    if branch_operand_is_zero = '0' then
+              alu_src_1  <= '0';      
+              reg_dst_1  <= '0'; -- don't care
+              jump       <= '0';
+              jal        <= '0';
+--              branch_taken <= '1';   
+              wb_enable_1   <= '0';
+--              if_id_latch_rst <= '1';
+      	    elsif branch_operand_is_zero = '1' then
+	      alu_src_1  <= '0';      
+              reg_dst_1  <= '0'; -- don't care
+              jump       <= '0';
+              jal        <= '0';
+--              branch_taken <= '0';   
+              wb_enable_1   <= '0';
+--              if_id_latch_rst <= '0';
+      	    else 
+              assert true report "BNQZ: Signal branch_operand_is_zero is not valid";
+      	    end if;
+          when others =>                -- other  I-type instructions
+            alu_src_1  <= '0';      
+            reg_dst_1  <= '0';
+            jump       <= '0';
+            jal        <= '0';
+--            branch_taken <= '0';   
+            wb_enable_1   <= '1';
+--            if_id_latch_rst <= '0';
+        end case;
+        
+      when "01" =>                      -- R-type
+        alu_src_1  <= '1';      
+        reg_dst_1  <= '1';
+        jump       <= '0';
+        jal        <= '0';
+--        branch_taken <= '0';   
+        wb_enable_1   <= '1';
+--        if_id_latch_rst <= '0';
+        
+      when "10" =>			-- J-type
+        case opcode_1(3 downto 0) is
+          when "0000"  =>	--jump
+            alu_src_1  <= '0'; --don't care      
+            reg_dst_1  <= '0'; -- don't care
+            jump       <= '1';
+            jal        <= '0';
+--            branch_taken <= '0';   
+            wb_enable_1   <= '0';
+--            if_id_latch_rst <= '1';
+          when "0001" =>  --jal
+            alu_src_1  <= '0'; --don't care      
+            reg_dst_1  <= '0'; -- don't care
+            jump       <= '0';
+            jal        <= '1';
+--            branch_taken <= '0';   
+            wb_enable_1   <= '1';
+--            if_id_latch_rst <= '1';
+          when others =>
+            assert true report "Invalid J-Type Instruction";
+        end case;  -- J case
+        
+      when others =>
+	assert true report "Invalid Opcode in Instruction 1";
+    end case;  -- Opcode case
+  end process;
+
+
+  
+  -- Datapath 0
+  process (opcode_0)
+  begin  -- process
+    case opcode_0(5 downto 4) is
+      when  "00" =>                     -- I-type
+	case opcode_0(3 downto 0) is
+
+          when "0000" =>               -- nop
+            alu_src_0  <= '0';      
+            reg_dst_0  <= '0'; 
+            mem_read <= '0';
+            mem_write <= '0';
+            wb_enable_0   <= '0';
+          when "0011" =>	-- LW
+            alu_src_0  <= '0';
+            reg_dst_0  <= '0'; 
+            mem_read <= '1';
+            mem_write <= '0';
+            wb_enable_0   <= '1';
+            
+          when "0100" => --SW
+            alu_src_0  <= '0';
+            reg_dst_0  <= '0'; -- don't care
+            mem_read <= '0';
+            mem_write <= '1';
+            wb_enable_0   <= '0';
+            
+          when others => 
+            alu_src_0  <= '0';
+            reg_dst_0  <= '0'; -- don't care
+            mem_read <= '0';
+            mem_write <= '0';
+            wb_enable_0   <= '1';
+	end case;
+
+      when  "01" =>		-- R-Type
+        alu_src_0  <= '1';
+        reg_dst_0  <= '1'; -- don't care
+        mem_read <= '0';
+        mem_write <= '0';
+        wb_enable_0   <= '1';
+        
+      when others =>
+	assert true report "Invalid Opcode in Instruction 0";
+    end case;
+  end process;    
+end rtl;

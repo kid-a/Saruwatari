@@ -1,0 +1,25 @@
+SARUWATARI HAZARD HANDLING
+
+-> Data Hazard
+
+   Being quite similar to DLX, SARUWATARI only suffers from read after
+   write (RAW) hazards.
+   
+   Let's suppose to have the following instructions:
+
+      instruction_0
+      instruction_1
+      instruction_2
+      instruction_3
+
+   Recall that SARUWATARI executes two instructions at the same time. So, to 
+   detect data hazards, we will have to check for dependencies among instruction_0
+   and instruction_2 and instruction_3 and among instruction_1 and instruction_2 and 
+   instruction_3.
+
+   There're three possible combinations:
+
+      1. {instruction_0, instruction_1} is a {addi, subi, multi, lw}
+         {instruction_2, instruction_3} is a I-type or a R-type instruction
+   
+   

@@ -1,0 +1,46 @@
+SARUWATARI HAZARD HANDLING
+
+-> Structural Hazard
+
+   Instructions belonging to the set {lw, sw, multi, mult, div} requires 
+   two clock cycles during the execute stage. As a result, the pipeline must 
+   be stalled. 
+
+   Moreover, if one of the two instruction present in the execute stage requires 
+   only one clock cycle to be executed, a not-operation (nop) must be inserted by the 
+   control unit.
+
+-> Control Hazard
+   Branches have to be handles using the predict untaken technique.
+   The branch result is calculated during the instruction decode stage.
+
+-> Data Hazard
+
+   Being quite similar to DLX, SARUWATARI only suffers from read after
+   write (RAW) hazards.
+   
+   Let's suppose to have the following instructions:
+
+      instruction_0
+      instruction_1
+      instruction_2
+      instruction_3
+
+   Recall that SARUWATARI executes two instructions at the same time. So, to 
+   detect data hazards, we will have to check for dependencies among instruction_0
+   and instruction_2 and instruction_3 and among instruction_1 and instruction_2 and 
+   instruction_3.
+
+   There exists three possibile combinations that leads to a data hazard:
+
+      1. {instruction_0, instruction_1} is a {addi, subi, multi, lw}
+         {instruction_2, instruction_3} is a I-type or a R-type instruction
+
+      2. {instruction_0, instruction_1} is a R-type instructino
+      	 {instruction_2, instruction_3} is a I-type or a R-type instruction
+      
+      3. instruction_1 is a jal -- dummy
+      	 the target of jal reads R31
+
+   
+   
