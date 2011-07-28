@@ -22,15 +22,15 @@ Hazards
 -------
 As in every pipeline, there hazards can occur.
 We have been given the following assumptions:
-    * only datapath 1 can perform memory operations
-    * given a couple of successive instructions, only one can be a memory operation
-    * the execute stage for instructions lw, sw, mult, multi, div requires two clock cycles
-    * no data dependency between couple of instructions executed concurrently
+* only datapath 1 can perform memory operations
+* given a couple of successive instructions, only one can be a memory operation
+* the execute stage for instructions lw, sw, mult, multi, div requires two clock cycles
+* no data dependency between couple of instructions executed concurrently
 
 We have also been requested to handle hazards in the following way:
-    * structural hazards: stall
-    * data hazards: stall
-    * control hazards: predict untaken with branch outcome known during decode
+* structural hazards: stall
+* data hazards: stall
+* control hazards: predict untaken with branch outcome known during decode
 
 In order to detect and handle hazards, 'saruwatari' has an 'hazard control unit', whose 
 input/output signals mapping can be found in 
@@ -43,15 +43,15 @@ https://raw.github.com/kid-a/Saruwatari/master/doc/hazards.txt
 Dependencies
 ------------
 In order to simulate saruwatari, you need:
-    * ghdl, for the vhdl description (http://ghdl.free.fr/)
-    * gcc, for the SystemC description 
-    * SystemC (http://www.systemc.org/home/)
-    * a waveform visualizer (such as http://gtkwave.sourceforge.net/)
+* ghdl, for the vhdl description (http://ghdl.free.fr/)
+* gcc, for the SystemC description 
+* SystemC (http://www.systemc.org/home/)
+* a waveform visualizer (such as http://gtkwave.sourceforge.net/)
 
 Authors
 -------
-Daniele Marletta 
-Loris Fichera
+* Daniele Marletta 
+* Loris Fichera
 
 License
 -------
